@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>USA Audience State Map</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #d1d5db;
+      --accent: #1d4ed8;
+      --accent2: #0f766e;
+      --south: #f59e0b;
+      --north: #3b82f6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .wrap {
+      max-width: 1300px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    h1, h2, h3, p { margin-top: 0; }
+    .grid {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 20px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+      padding: 18px;
+    }
+    label {
+      display: block;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    select, button, input {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      font-size: 15px;
+    }
+    button {
+      background: var(--accent);
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-weight: 700;
+    }
+    button.secondary {
+      background: #e5e7eb;
+      color: #111827;
+    }
+    button + button { margin-top: 10px; }
+    .spacer { height: 14px; }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .stat {
+      padding: 14px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: #fafafa;
+    }
+    .stat .num {
+      font-size: 26px;
+      font-weight: 800;
+      margin-top: 6px;
+    }
+    .legend {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin: 8px 0 18px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .mapBox {
+      overflow-x: auto;
+      padding-bottom: 8px;
+    }
+    svg {
+      width: 100%;
+      min-width: 820px;
+      height: auto;
+      background: white;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+    }
+    .state {
+      stroke: #ffffff;
+      stroke-width: 2;
+      cursor: pointer;
+      transition: opacity .15s ease, transform .15s ease;
+    }
+    .state:hover {
+      opacity: 0.88;
+    }
+    .state-label {
+      font-size: 12px;
+      fill: #111827;
+      text-anchor: middle;
+      pointer-events: none;
+      font-weight: 700;
+    }
+    .small-label { font-size: 9px; }
+    .word-cloud {
+      min-height: 220px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 10px 14px;
+      padding: 12px;
+      border: 1px dashed var(--border);
+      border-radius: 16px;
+      background: #fcfcfd;
+    }
+    .word {
+      display: inline-block;
+      font-weight: 800;
+      line-height: 1;
+      user-select: none;
+    }
+    .muted { color: var(--muted); }
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 18px;
+      margin-top: 18px;
+    }
+    .table-wrap { overflow: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    th, td {
+      border-bottom: 1px solid var(--border);
+      padding: 10px 8px;
+      text-align: left;
+    }
+    th { background: #f8fafc; }
+    .note {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    @media (max-width: 980px) {
+      .grid, .two-col { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Audience State Map</h1>
+  <p class="muted">Click a state on the map or use the dropdown to record where someone is from. The app counts responses, builds a word cloud, and calculates North vs South percentages.</p>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Enter a response</h2>
+      <label for="stateSelect">Select a state</label>
+      <select id="stateSelect"></select>
+      <div class="spacer"></div>
+      <button id="addBtn">Add response</button>
+      <div class="spacer"></div>
+      <button id="undoBtn" class="secondary">Undo last response</button>
+      <button id="resetBtn" class="secondary">Reset all data</button>
+      <div class="spacer"></div>
+      <h3>How regions are counted</h3>
+      <p class="note">
+        This version uses a simple classroom-friendly split.<br><br>
+        <strong>South:</strong> AL, AR, DE, FL, GA, KY, LA, MD, MS, NC, OK, SC, TN, TX, VA, WV, DC<br>
+        <strong>North:</strong> all remaining states in the lower 48 plus AK and HI.
+      </p>
+      <p class="note">You can edit the South list inside the HTML file if your class uses a different definition.</p>
+    </div>
+
+    <div class="card">
+      <div class="stats">
+        <div class="stat">
+          <div>Total responses</div>
+          <div class="num" id="totalResponses">0</div>
+        </div>
+        <div class="stat">
+          <div>South</div>
+          <div class="num" id="southPct">0%</div>
+        </div>
+        <div class="stat">
+          <div>North</div>
+          <div class="num" id="northPct">0%</div>
+        </div>
+      </div>
+
+      <div class="legend">
+        <span><i class="dot" style="background:#dbeafe"></i> North</span>
+        <span><i class="dot" style="background:#fde68a"></i> South</span>
+        <span><i class="dot" style="background:#1d4ed8"></i> Higher response count</span>
+      </div>
+
+      <div class="mapBox">
+        <svg viewBox="0 0 980 600" aria-label="Simplified interactive map of the United States" id="usMap"></svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <h2>Word cloud</h2>
+      <div id="wordCloud" class="word-cloud">
+        <span class="muted">No responses yet.</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>North vs South</h2>
+      <canvas id="regionChart" width="320" height="320"></canvas>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:18px;">
+    <h2>Response table</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>State</th>
+            <th>Count</th>
+            <th>Region</th>
+            <th>% of total</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const stateData = [
+  {code:'WA', name:'Washington', x:55, y:60, w:70, h:45},
+  {code:'MT', name:'Montana', x:160, y:58, w:80, h:45},
+  {code:'ND', name:'North Dakota', x:260, y:60, w:70, h:42},
+  {code:'MN', name:'Minnesota', x:340, y:58, w:72, h:52},
+  {code:'WI', name:'Wisconsin', x:425, y:75, w:52, h:60},
+  {code:'MI', name:'Michigan', x:490, y:70, w:60, h:65},
+  {code:'VT', name:'Vermont', x:760, y:72, w:24, h:36},
+  {code:'NH', name:'New Hampshire', x:790, y:70, w:24, h:36},
+  {code:'ME', name:'Maine', x:825, y:52, w:45, h:70},
+
+  {code:'OR', name:'Oregon', x:60, y:120, w:65, h:52},
+  {code:'ID', name:'Idaho', x:140, y:115, w:55, h:65},
+  {code:'WY', name:'Wyoming', x:205, y:118, w:72, h:46},
+  {code:'SD', name:'South Dakota', x:285, y:112, w:72, h:42},
+  {code:'IA', name:'Iowa', x:368, y:130, w:58, h:38},
+  {code:'IL', name:'Illinois', x:438, y:128, w:45, h:62},
+  {code:'IN', name:'Indiana', x:488, y:138, w:34, h:52},
+  {code:'OH', name:'Ohio', x:530, y:136, w:44, h:52},
+  {code:'PA', name:'Pennsylvania', x:585, y:134, w:58, h:42},
+  {code:'NY', name:'New York', x:655, y:112, w:78, h:48},
+  {code:'MA', name:'Massachusetts', x:770, y:118, w:35, h:22},
+  {code:'CT', name:'Connecticut', x:742, y:145, w:32, h:20},
+  {code:'RI', name:'Rhode Island', x:780, y:145, w:18, h:18},
+  {code:'NJ', name:'New Jersey', x:650, y:160, w:28, h:40},
+
+  {code:'CA', name:'California', x:45, y:195, w:62, h:110},
+  {code:'NV', name:'Nevada', x:118, y:194, w:58, h:82},
+  {code:'UT', name:'Utah', x:186, y:192, w:55, h:70},
+  {code:'CO', name:'Colorado', x:252, y:195, w:72, h:46},
+  {code:'NE', name:'Nebraska', x:334, y:182, w:76, h:42},
+  {code:'MO', name:'Missouri', x:420, y:186, w:72, h:52},
+  {code:'KY', name:'Kentucky', x:504, y:194, w:72, h:34},
+  {code:'WV', name:'West Virginia', x:588, y:186, w:38, h:44},
+  {code:'VA', name:'Virginia', x:634, y:188, w:72, h:34},
+  {code:'MD', name:'Maryland', x:653, y:228, w:42, h:18},
+  {code:'DE', name:'Delaware', x:700, y:224, w:18, h:20},
+
+  {code:'AZ', name:'Arizona', x:138, y:287, w:66, h:68},
+  {code:'NM', name:'New Mexico', x:214, y:284, w:70, h:68},
+  {code:'KS', name:'Kansas', x:333, y:238, w:76, h:42},
+  {code:'AR', name:'Arkansas', x:421, y:250, w:56, h:48},
+  {code:'TN', name:'Tennessee', x:490, y:244, w:88, h:28},
+  {code:'NC', name:'North Carolina', x:592, y:242, w:90, h:32},
+  {code:'SC', name:'South Carolina', x:648, y:280, w:45, h:48},
+  {code:'DC', name:'District of Columbia', x:688, y:210, w:12, h:12},
+
+  {code:'AK', name:'Alaska', x:52, y:455, w:110, h:58},
+  {code:'HI', name:'Hawaii', x:210, y:492, w:62, h:30},
+  {code:'TX', name:'Texas', x:305, y:318, w:120, h:100},
+  {code:'OK', name:'Oklahoma', x:314, y:286, w:96, h:28},
+  {code:'LA', name:'Louisiana', x:438, y:336, w:48, h:62},
+  {code:'MS', name:'Mississippi', x:500, y:316, w:38, h:70},
+  {code:'AL', name:'Alabama', x:544, y:314, w:38, h:72},
+  {code:'GA', name:'Georgia', x:590, y:308, w:58, h:76},
+  {code:'FL', name:'Florida', x:650, y:338, w:95, h:82}
+];
+
+const southStates = new Set(['AL','AR','DE','FL','GA','KY','LA','MD','MS','NC','OK','SC','TN','TX','VA','WV','DC']);
+
+const counts = JSON.parse(localStorage.getItem('audienceStateCounts') || '{}');
+const responseHistory = JSON.parse(localStorage.getItem('audienceStateHistory') || '[]');
+
+const stateSelect = document.getElementById('stateSelect');
+const totalResponsesEl = document.getElementById('totalResponses');
+const southPctEl = document.getElementById('southPct');
+const northPctEl = document.getElementById('northPct');
+const tableBody = document.getElementById('tableBody');
+const wordCloud = document.getElementById('wordCloud');
+const usMap = document.getElementById('usMap');
+
+stateData
+  .slice()
+  .sort((a,b) => a.name.localeCompare(b.name))
+  .forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s.code;
+    opt.textContent = `${s.name} (${s.code})`;
+    stateSelect.appendChild(opt);
+  });
+
+function saveData() {
+  localStorage.setItem('audienceStateCounts', JSON.stringify(counts));
+  localStorage.setItem('audienceStateHistory', JSON.stringify(responseHistory));
+}
+
+function totalResponses() {
+  return Object.values(counts).reduce((a,b) => a + b, 0);
+}
+
+function getRegion(code) {
+  return southStates.has(code) ? 'South' : 'North';
+}
+
+function addResponse(code) {
+  counts[code] = (counts[code] || 0) + 1;
+  responseHistory.push(code);
+  saveData();
+  renderAll();
+}
+
+function undoLast() {
+  const last = responseHistory.pop();
+  if (!last) return;
+  counts[last] = Math.max(0, (counts[last] || 0) - 1);
+  if (counts[last] === 0) delete counts[last];
+  saveData();
+  renderAll();
+}
+
+function resetAll() {
+  Object.keys(counts).forEach(k => delete counts[k]);
+  responseHistory.length = 0;
+  saveData();
+  renderAll();
+}
+
+function stateFill(code) {
+  const c = counts[code] || 0;
+  const region = getRegion(code);
+  if (c === 0) return region === 'South' ? '#fde68a' : '#dbeafe';
+  const max = Math.max(1, ...Object.values(counts));
+  const alpha = 0.28 + (0.72 * c / max);
+  return region === 'South'
+    ? `rgba(245, 158, 11, ${alpha})`
+    : `rgba(29, 78, 216, ${alpha})`;
+}
+
+function renderMap() {
+  usMap.innerHTML = '';
+  stateData.forEach(s => {
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('x', s.x);
+    rect.setAttribute('y', s.y);
+    rect.setAttribute('width', s.w);
+    rect.setAttribute('height', s.h);
+    rect.setAttribute('rx', 8);
+    rect.setAttribute('class', 'state');
+    rect.setAttribute('fill', stateFill(s.code));
+    rect.setAttribute('data-code', s.code);
+    rect.addEventListener('click', () => addResponse(s.code));
+    const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    title.textContent = `${s.name}: ${counts[s.code] || 0}`;
+    rect.appendChild(title);
+    usMap.appendChild(rect);
+
+    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('x', s.x + s.w / 2);
+    label.setAttribute('y', s.y + s.h / 2 + 4);
+    label.setAttribute('class', 'state-label' + ((s.w < 28 || s.h < 20) ? ' small-label' : ''));
+    label.textContent = s.code;
+    usMap.appendChild(label);
+  });
+}
+
+let regionChart;
+function renderChart() {
+  const total = totalResponses();
+  let south = 0;
+  let north = 0;
+  Object.entries(counts).forEach(([code, n]) => {
+    if (southStates.has(code)) south += n;
+    else north += n;
+  });
+
+  southPctEl.textContent = total ? `${((south / total) * 100).toFixed(1)}%` : '0%';
+  northPctEl.textContent = total ? `${((north / total) * 100).toFixed(1)}%` : '0%';
+  totalResponsesEl.textContent = total;
+
+  const ctx = document.getElementById('regionChart').getContext('2d');
+  if (regionChart) regionChart.destroy();
+  regionChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['South', 'North'],
+      datasets: [{
+        data: [south, north],
+        backgroundColor: ['#f59e0b', '#3b82f6']
+      }]
+    },
+    options: {
+      plugins: {
+        legend: { position: 'bottom' }
+      }
+    }
+  });
+}
+
+function renderTable() {
+  const total = totalResponses();
+  const rows = stateData
+    .map(s => ({...s, count: counts[s.code] || 0}))
+    .filter(s => s.count > 0)
+    .sort((a,b) => b.count - a.count || a.name.localeCompare(b.name));
+
+  if (rows.length === 0) {
+    tableBody.innerHTML = `<tr><td colspan="4" class="muted">No responses yet.</td></tr>`;
+    return;
+  }
+
+  tableBody.innerHTML = rows.map(r => `
+    <tr>
+      <td>${r.name}</td>
+      <td>${r.count}</td>
+      <td>${getRegion(r.code)}</td>
+      <td>${((r.count / total) * 100).toFixed(1)}%</td>
+    </tr>
+  `).join('');
+}
+
+function renderWordCloud() {
+  const rows = stateData
+    .map(s => ({...s, count: counts[s.code] || 0}))
+    .filter(s => s.count > 0)
+    .sort((a,b) => b.count - a.count || a.name.localeCompare(b.name));
+
+  if (rows.length === 0) {
+    wordCloud.innerHTML = `<span class="muted">No responses yet.</span>`;
+    return;
+  }
+
+  const max = Math.max(...rows.map(r => r.count));
+  wordCloud.innerHTML = rows.map((r, i) => {
+    const size = 18 + (r.count / max) * 34;
+    const rotate = i % 5 === 0 ? '-4deg' : (i % 4 === 0 ? '4deg' : '0deg');
+    const color = getRegion(r.code) === 'South' ? '#b45309' : '#1d4ed8';
+    return `<span class="word" style="font-size:${size.toFixed(0)}px; transform:rotate(${rotate}); color:${color};">${r.name}</span>`;
+  }).join('');
+}
+
+function renderAll() {
+  renderMap();
+  renderChart();
+  renderTable();
+  renderWordCloud();
+}
+
+document.getElementById('addBtn').addEventListener('click', () => addResponse(stateSelect.value));
+document.getElementById('undoBtn').addEventListener('click', undoLast);
+document.getElementById('resetBtn').addEventListener('click', () => {
+  if (confirm('Reset all audience response data?')) resetAll();
+});
+
+renderAll();
+</script>
+</body>
+</html>
